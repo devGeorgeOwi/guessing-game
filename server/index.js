@@ -5,12 +5,58 @@ import cors from 'cors';
 import { GameSessionManager } from './GameSessionManager.js';
 
 const app = express();
-app.use(cors({ origin: 'http://localhost:5173' })); // Vite default port
+app.use(cors({ 
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const cleanOrigin = origin.replace(/\/$/, '');
+    const allowed = [
+      'http://localhost:5173',
+      'http:/guessing-game-three-tau.vercel.app'
+    ];
+    const envOrigin = process.env.FRONTEND_URL?.replace(/\/$/, '');
+    if (envOrigin) allowed.push(envOrigin);
+
+    if (allowed.includes(cleanOrigin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+})); // Vite default port
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { 
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173', 
-    methods: ['GET', 'POST'] 
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+
+      // Allowed origins (remove trailing slash for comparison)
+      const allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://guessing-game-three-tau.vercel.app'
+      ];
+
+      // Also check environment variable if set
+      const envOrigin = process.env.FRONTEND_URL;
+      if (envOrigin) {
+        // Remove trailing slash from env origin
+        const cleanEnvOrigin = envOrigin.replace(/\/$/, '');
+        allowedOrigins.push(cleanEnvOrigin);
+      }
+
+      // Remove trailinng slash from incoming origin for comparison
+      const cleanOrigin = origin.replace(/\/$/, '');
+
+      if (allowedOrigins.includes(cleanOrigin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
