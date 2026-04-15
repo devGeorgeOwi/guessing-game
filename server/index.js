@@ -1,71 +1,48 @@
 import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import cors from 'cors';
 import { GameSessionManager } from './GameSessionManager.js';
 
 const app = express();
-app.use(cors({ 
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    const cleanOrigin = origin.replace(/\/$/, '');
-    const allowed = [
-      'http://localhost:5173',
-      'http:/guessing-game-three-tau.vercel.app'
-    ];
-    const envOrigin = process.env.FRONTEND_URL?.replace(/\/$/, '');
-    if (envOrigin) allowed.push(envOrigin);
-
-    if (allowed.includes(cleanOrigin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-})); // Vite default port
 const httpServer = createServer(app);
+
+// ========== CORS: Allowed Origins ==========
+const allowedOrigins = [
+  'http://localhost:5173',                        // Vite dev
+  'https://guessing-game-three-tau.vercel.app'    // Your live frontend
+];
+const envOrigin = process.env.FRONTEND_URL?.replace(/\/$/, '');
+if (envOrigin) allowedOrigins.push(envOrigin);
+
+// ========== Socket.IO Server ==========
 const io = new Server(httpServer, {
-  cors: { 
+  cors: {
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl)
+      // Allow non‑browser requests (e.g., Postman) with no origin
       if (!origin) return callback(null, true);
-
-      // Allowed origins (remove trailing slash for comparison)
-      const allowedOrigins = [
-        'http://localhost:5173',
-        'http://localhost:3000',
-        'https://guessing-game-three-tau.vercel.app'
-      ];
-
-      // Also check environment variable if set
-      const envOrigin = process.env.FRONTEND_URL;
-      if (envOrigin) {
-        // Remove trailing slash from env origin
-        const cleanEnvOrigin = envOrigin.replace(/\/$/, '');
-        allowedOrigins.push(cleanEnvOrigin);
-      }
-
-      // Remove trailinng slash from incoming origin for comparison
       const cleanOrigin = origin.replace(/\/$/, '');
-
       if (allowedOrigins.includes(cleanOrigin)) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error(`CORS blocked: ${origin}`));
       }
     },
-    methods: ['GET', 'POST'],
     credentials: true,
-    transports: ['polling', 'websocket'], // Allow both transports 
-    allowEIO3: true,    // compatibility with older clients
-    pingTimeout: 60000,
-    pingTimeout: 25000
-  }
+    methods: ['GET', 'POST']
+  },
+  transports: ['polling', 'websocket'],   // polling first as fallback
+  allowEIO3: true,                        // compatibility with older clients
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
+// ========== Optional Health Check ==========
+app.get('/health', (req, res) => res.send('OK'));
+
+// ========== Session Manager ==========
 const sessionManager = new GameSessionManager();
 
+// ========== Socket.IO Event Handlers ==========
 io.on('connection', (socket) => {
   console.log(`[CONNECT] ${socket.id}`);
 
@@ -113,6 +90,21 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Set question bank (GM only)
+  socket.on('game:setQuestions', ({ sessionId, questions }, callback) => {
+    try {
+      const session = sessionManager.getSession(sessionId);
+      if (!session) return callback({ error: 'Session not found' });
+      if (session.gameMasterId !== socket.id) {
+        return callback({ error: 'Only game master can set questions' });
+      }
+      session.setQuestions(questions);
+      callback({ success: true, count: session.questionQueue.length });
+    } catch (err) {
+      callback({ error: err.message });
+    }
+  });
+
   // Start game (GM only)
   socket.on('game:start', ({ sessionId }, callback) => {
     try {
@@ -148,21 +140,6 @@ io.on('connection', (socket) => {
       callback({ success: true });
     } catch (err) {
       callback({ error: err.message });
-    }
-  });
-
-  // Set question bank (GM only)
-  socket.on('game:setQuestions', ({ sessionId, questions }, callback) => {
-    try {
-        const session = sessionManager.getSession(sessionId);
-        if (!session) return callback({ error: 'Session not found' });
-        if (session.gameMasterId !== socket.id) {
-            return callback({ error: 'Only game master can set questions' });
-        }
-        session.setQuestions(questions);
-        callback({ success: true, count: session.questionQueue.length });
-    } catch (err) {
-        callback({ error: err.message });
     }
   });
 
@@ -252,7 +229,9 @@ io.on('connection', (socket) => {
   });
 });
 
+// ========== Start Server ==========
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`CORS allowed origins: ${allowedOrigins.join(', ')}`);
 });
