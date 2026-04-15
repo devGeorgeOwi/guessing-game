@@ -20,7 +20,12 @@ export default function App() {
   const timerRef = useRef(null);
 
   useEffect(() => {
-    const newSocket = io(SOCKET_URL);
+    const newSocket = io(SOCKET_URL, {
+      transports: ['polling', 'websocket'],  // polling first,  then upgrade to websocket
+      upgrade: true,
+      reconnectionAttempts:  5,
+      reconnectionDelay: 1000
+    });
     setSocket(newSocket);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);

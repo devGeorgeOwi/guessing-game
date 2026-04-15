@@ -56,7 +56,11 @@ const io = new Server(httpServer, {
       }
     },
     methods: ['GET', 'POST'],
-    credentials: true
+    credentials: true,
+    transports: ['polling', 'websocket'], // Allow both transports 
+    allowEIO3: true,    // compatibility with older clients
+    pingTimeout: 60000,
+    pingTimeout: 25000
   }
 });
 
