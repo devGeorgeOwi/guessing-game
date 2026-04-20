@@ -72,19 +72,24 @@ io.on('connection', (socket) => {
       if (!sessionId?.trim() || !playerName?.trim()) {
         return callback({ error: 'Session ID and player name required' });
       }
-      const session = sessionManager.getSession(sessionId.trim());
-      if (!session) return callback({ error: 'Session not found' });
+
+      // ✅ Fix Session ID Case Sensitivity
+      const normalizedSessionId = sessionId.trim().toUpperCase();
+      const session = sessionManager.getSession(normalizedSessionId);
+      if (!session) {
+        return callback({ error: `Session ${normalizedSessionId} not found. Please check the session code and try again.` });
+      } 
       
       const result = session.addPlayer(socket.id, playerName.trim());
       if (!result.success) return callback({ error: result.error });
       
-      socket.join(sessionId);
+      socket.join(normalizedSessionId); // ✅ Use Normalized Session ID
       callback({ 
         success: true, 
         gameMasterId: session.gameMasterId,
         playerId: socket.id
       });
-      io.to(sessionId).emit('players:update', session.getPublicPlayers());
+      io.to(normalizedSessionId).emit('players:update', session.getPublicPlayers());
     } catch (err) {
       callback({ error: err.message });
     }

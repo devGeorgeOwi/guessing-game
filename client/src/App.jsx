@@ -5,6 +5,7 @@ import JoinScreen from './components/JoinScreen';
 import GameLobby from './components/GameLobby';
 import GamePlay from './components/GamePlay';
 import Scoreboard from './components/Scoreboard';
+import GameLog from './components/GameLog';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
@@ -17,7 +18,15 @@ export default function App() {
   const [isGameMaster, setIsGameMaster] = useState(false);
   const [players, setPlayers] = useState([]);
   const [gameState, setGameState] = useState(null);
+  const [gameLogs, setGameLogs] = useState([]);
   const timerRef = useRef(null);
+
+  const addLog = (message) => {
+    setGameLogs(prev => [...prev, { 
+      time: new Date().toLocaleTimeString(), 
+      message 
+    }]);
+  };
 
   useEffect(() => {
     const newSocket = io(SOCKET_URL, {
@@ -54,6 +63,7 @@ export default function App() {
         winnerId: null,
         expired: false
       });
+      addLog(`🎮 Game started! Question: "${question}"`); // ✅ Add to Game Log
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = setInterval(() => {
         const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
@@ -64,6 +74,7 @@ export default function App() {
 
     socket.on('game:expired', ({ answer, message }) => {
       toast.error(message);
+      addLog(`⏰ Game expired! Answer: "${answer}"`); // ✅ Add to Game Log
       setGameState(prev => ({ ...prev, answerRevealed: true, revealedAnswer: answer, expired: true }));
       setTimeout(() => {
         setStep('lobby');
@@ -74,11 +85,13 @@ export default function App() {
 
     socket.on('game:winner', ({ winnerId, winnerName, answer, pointsAwarded }) => {
       toast.success(`${winnerName} won! +${pointsAwarded} points`);
+      addLog(`🏆 ${winnerName} won the round with answer "${answer}" and earned +${pointsAwarded} points!`); // ✅ Add to Game Log
       setGameState(prev => ({ ...prev, winnerId, answerRevealed: true, revealedAnswer: answer, expired: false }));
       if (timerRef.current) clearInterval(timerRef.current);
     });
 
     socket.on('game:ended', () => {
+      addLog(`🔚 Round ended. Returning to lobby...`);
       setTimeout(() => {
         setStep('lobby');
         setGameState(null);
@@ -88,13 +101,18 @@ export default function App() {
     socket.on('game:newGameMaster', ({ gameMasterId }) => {
       if (gameMasterId === playerId) {
         toast.success('You are now the Game Master!');
+        addLog(`👑 You are now the Game Master!`);
         setIsGameMaster(true);
+      } else {
+        const newGM = players.find(p => p.id === gameMasterId)?.name || 'Someone';
+        addLog(`👑 ${newGM} is now the Game Master.`);
       }
     });
 
     socket.on('guess:result', ({ playerId: guesserId, playerName, attemptsLeft }) => {
       if (guesserId !== playerId) {
         toast(`${playerName} guessed wrong! ${attemptsLeft} attempts left`);
+        addLog(`❌ ${playerName} guessed wrong. ${attemptsLeft} attempts remaining.`); // ✅ Add to Game Log
       }
     });
 
@@ -107,7 +125,7 @@ export default function App() {
       socket.off('game:newGameMaster');
       socket.off('guess:result');
     };
-  }, [socket, playerId]);
+  }, [socket, playerId, players]);
 
   const handleCreateSession = (name) => {
     socket.emit('session:create', { playerName: name }, (res) => {
@@ -118,18 +136,21 @@ export default function App() {
       setIsGameMaster(true);
       setStep('lobby');
       toast.success(`Session created! Code: ${res.sessionId}`);
+      addLog(`🎉 Session created with code ${res.sessionId}. You are the Game Master.`);
     });
   };
 
   const handleJoinSession = (name, code) => {
-    socket.emit('session:join', { sessionId: code, playerName: name }, (res) => {
+    const normalizedCode = code.trim().toUpperCase();
+    socket.emit('session:join', { sessionId: normalizedCode, playerName: name }, (res) => {
       if (res.error) return toast.error(res.error);
-      setSessionId(code);
+      setSessionId(normalizedCode); // ✅ Use Normalized code
       setPlayerId(res.playerId);
       setPlayerName(name);
       setIsGameMaster(false);
       setStep('lobby');
-      toast.success(`Joined session ${code}`);
+      toast.success(`Joined session ${normalizedCode}`);
+      addLog(`🔗 ${name} joined the session.`);
     });
   };
 
@@ -157,6 +178,7 @@ export default function App() {
       setIsGameMaster(false);
       setPlayers([]);
       setGameState(null);
+      setGameLogs([]); // ✅ Clear Game Log
       if (timerRef.current) clearInterval(timerRef.current);
     });
   };
@@ -173,28 +195,42 @@ export default function App() {
     return (
       <>
         <Toaster position="top-center" />
-        <GameLobby
-          socket={socket}
-          sessionId={sessionId}
-          players={players}
-          isGameMaster={isGameMaster}
-          // onStartGame={handleStartGame}
-          onLeave={handleLeaveSession}
-          playerName={playerName}
-        />
+        <div className="flex flex-col lg:flex-row gap-4 p-4 md:p-6"> {/* ✅ Add Game Log */}
+          <div className="flex-1 order-1 lg:order-none">
+            <GameLobby
+                socket={socket}
+                sessionId={sessionId}
+                players={players}
+                isGameMaster={isGameMaster}
+                // onStartGame={handleStartGame}
+                onLeave={handleLeaveSession}
+                playerName={playerName}
+              />
+            </div>
+          <div className="w-full lg:w-80 order-2 lg:order-none">
+            <GameLog events={gameLogs} />
+          </div>
+        </div>
       </>
     );
   }
   return (
     <>
       <Toaster position="top-center" />
-      <GamePlay
-        gameState={gameState}
-        players={players}
-        playerId={playerId}
-        onSubmitGuess={handleSubmitGuess}
-        onLeave={handleLeaveSession}
-      />
+      <div className="flex flex-col lg:flex-row gap-4 p-4 md:p-6">
+        <div className="flex-1 order-1 lg:order-none">
+          <GamePlay
+          gameState={gameState}
+          players={players}
+          playerId={playerId}
+          onSubmitGuess={handleSubmitGuess}
+          onLeave={handleLeaveSession}
+        />
+        </div>
+        <div className="w-full lg:w-80 order-2 lg:order-none"> {/* <-- GameLog sidebar */}
+          <GameLog events={gameLogs} />
+        </div>
+      </div>
       <Scoreboard players={players} currentPlayerId={playerId} />
     </>
   );

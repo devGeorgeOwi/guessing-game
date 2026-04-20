@@ -12,6 +12,9 @@ export class GameSession {
     this.playerAttempts = new Map(); // playerId -> attemptsLeft
     this.questionQueue = [];
     this.currentQuestionIndex = -1;
+    this.originalGameMasterId = gameMasterId; // original GM (ever changes)
+    this.roundsPerGM = 3; // number of rounds GM stays (change to 5 if needed)
+    this.currentRoundCount = 0; // rounds completed under current GM
     
     this.players.set(gameMasterId, { id: gameMasterId, name: gameMasterName, score: 0 });
   }
@@ -23,6 +26,13 @@ export class GameSession {
     if (this.players.has(playerId)) {
       return { success: false, error: 'Already in session' };
     }
+    // ✅ Duplicate player check
+    const nameExists = Array.from(this.players.values()).some(
+      p => p.name.toLowerCase() === playerName.toLowerCase()
+    );
+    if (nameExists) {
+      return { success: false, error: 'Username already taken in this session.' };
+    } 
     if (this.players.size >= 10) {
       return { success: false, error: 'Session full (max 10)' };
     }
@@ -62,6 +72,7 @@ export class GameSession {
     return !this.isGameActive && this.players.size >= 2;
   }
 
+  // Modify startGame() - increament round counter
   startGame() {
     if (!this.canStartGame()) {
       return { success: false, error: `Need at least 2 players (current: ${this.players.size})` };
@@ -79,6 +90,7 @@ export class GameSession {
     for (const pid of this.players.keys()) {
       this.playerAttempts.set(pid, 3);
     }
+    this.currentRoundCount++; // increament
     return { success: true };
   }
 
@@ -104,23 +116,27 @@ export class GameSession {
       return { success: true, correct: false, attemptsLeft: newAttempts };
     }
   }
+// Modify endGame() – only change GM after roundsPerGM
+ endGame(hasWinner) {
+  this.isGameActive = false;
+  if (this.timer) {
+    clearTimeout(this.timer);
+    this.timer = null;
+  }
 
-  endGame(hasWinner) {
-    this.isGameActive = false;
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
-    if (hasWinner && this.winnerId) {
-      this.gameMasterId = this.winnerId;
-    } else if (this.players.size > 0) {
-      // Rotate to next player
+  // After 'roundsPerGM' rounds, rotate to the next player
+  if (this.currentRoundCount >= this.roundsPerGM) {
+    if (this.players.size > 0) {
       const ids = Array.from(this.players.keys());
       const currentIdx = ids.indexOf(this.gameMasterId);
       const nextIdx = (currentIdx + 1) % ids.length;
       this.gameMasterId = ids[nextIdx];
+      this.originalGameMasterId = this.gameMasterId; // optional
+      this.currentRoundCount = 0; // reset for new GM
     }
   }
+  // Note: The winner does NOT become the Game Master
+}
 
   setTimer(timer) {
     this.timer = timer;

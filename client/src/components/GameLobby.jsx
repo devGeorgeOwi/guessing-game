@@ -37,7 +37,7 @@ export default function GameLobby({ socket, sessionId, players, isGameMaster, on
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
+    <div className="min-h-screen bg-gray-900 p-3 md:p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -53,7 +53,7 @@ export default function GameLobby({ socket, sessionId, players, isGameMaster, on
 
         <div className="bg-gray-800 rounded-xl p-6 mb-6">
           <h2 className="text-xl font-semibold text-white mb-4">👥 Players ({players.length}/10)</h2>
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-80 overflow-y-auto">
             {players.map((player) => (
               <div key={player.id} className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
                 <div className="flex items-center gap-2">
