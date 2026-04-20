@@ -3,7 +3,8 @@ import React from 'react';
 export default function Scoreboard({ players, currentPlayerId }) {
   const sorted = [...players].sort((a, b) => b.score - a.score);
   return (
-    <div className="fixed right-4 top-20 w-64 bg-gray-800 rounded-xl shadow-xl overflow-hidden border border-gray-700">
+    <div className="bg-gray-800 rounded-xl shadow-xl overflow-hidden border border-gray-700 
+                sticky top-4 z-10 mx-4 lg:fixed lg:right-4 lg:top-20 lg:w-64 lg:mx-0">
       <div className="bg-purple-600 p-3">
         <h3 className="text-white font-bold text-center">🏆 Scoreboard</h3>
       </div>

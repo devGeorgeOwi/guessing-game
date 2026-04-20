@@ -15,7 +15,7 @@ export default function GamePlay({ gameState, players, playerId, onSubmitGuess, 
   const showAnswer = gameState?.answerRevealed;
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
+    <div className="min-h-screen bg-gray-900 p-3 md:p-6">
       <div className="max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-white">🎯 Guessing Game</h1>
